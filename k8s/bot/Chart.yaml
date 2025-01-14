@@ -1,0 +1,17 @@
+apiVersion: v2
+name: qq-github-bot
+version: 0.3.0
+appVersion: "2.0.0"
+description: QQ GitHub Bot helm chart for kubernetes
+type: application
+keywords:
+  - GitHub Bot
+  - NoneBot
+  - QQ
+home: https://github.com/cscs181/QQ-GitHub-Bot
+sources:
+  - https://github.com/cscs181/QQ-GitHub-Bot
+maintainers:
+  - name: yanyongyu
+    email: yyy@yyydl.top
+    url: https://github.com/yanyongyu

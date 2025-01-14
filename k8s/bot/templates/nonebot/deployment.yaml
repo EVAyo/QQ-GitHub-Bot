@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bot.name" . }}-nonebot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nonebot
+spec:
+  replicas: {{ .Values.bot.replicas }}
+  selector:
+    matchLabels:
+      {{- include "bot.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nonebot
+  strategy:
+    {{- toYaml .Values.bot.updateStrategy | nindent 4 }}
+  template:
+    metadata:
+      {{- with .Values.bot.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "bot.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nonebot
+    spec:
+      {{- with .Values.bot.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-redis
+          image: "{{ .Values.redis.image.repo }}:{{ .Values.redis.image.tag }}"
+          command:
+            - "sh"
+            - "-c"
+            - |
+              until redis-cli -h {{ include "bot.name" . }}-redis-service -p 6379 ping;
+              do echo waiting for redis;
+              sleep 2;
+              done;
+          env:
+            - name: REDISCLI_AUTH
+              value: {{ .Values.bot.config.REDIS_PASSWORD }}
+        - name: wait-for-postgres
+          image: "{{ .Values.postgres.image.repo }}:{{ .Values.postgres.image.tag }}"
+          command:
+            - "sh"
+            - "-c"
+            - |
+              until pg_isready -h {{ include "bot.name" . }}-postgres-service -p 5432;
+              do echo waiting for postgres;
+              sleep 2;
+              done;
+      containers:
+        - name: {{ .Chart.Name }}-nonebot
+          {{- with .Values.bot.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.bot.image.repo }}:{{ .Values.bot.image.tag }}"
+          imagePullPolicy: {{ .Values.bot.image.pullPolicy }}
+          env:
+            - name: ENVIRONMENT
+              value: prod
+            - name: PRE_START_PATH
+              value: /app/disable
+            - name: HOST
+              value: "0.0.0.0"
+            - name: REDIS_HOST
+              value: {{ include "bot.name" . }}-redis-service
+            - name: REDIS_PORT
+              value: "6379"
+            - name: POSTGRES_HOST
+              value: {{ include "bot.name" . }}-postgres-service
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: SERVER_STATUS_ENABLED
+              value: "false"
+            {{- range $key, $value := .Values.bot.config }}
+            - name: {{ $key | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          ports:
+            - name: nonebot
+              containerPort: {{ required "bot port" .Values.bot.config.PORT }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: nonebot
+            timeoutSeconds: 5
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: nonebot
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.bot.resources | nindent 12 }}
+      {{- with .Values.bot.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.bot.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.bot.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

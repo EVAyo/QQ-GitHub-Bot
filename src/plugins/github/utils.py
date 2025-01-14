@@ -1,29 +1,38 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 @Author         : yanyongyu
 @Date           : 2022-09-07 12:14:14
 @LastEditors    : yanyongyu
-@LastEditTime   : 2022-09-07 12:14:14
-@Description    : None
+@LastEditTime   : 2023-12-04 16:52:53
+@Description    : Utils for github plugin
 @GitHub         : https://github.com/yanyongyu
 """
+
 __author__ = "yanyongyu"
 
 import nonebot
-from nonebot.adapters.github import GitHubBot
-from githubkit import GitHub, TokenAuthStrategy
+from githubkit import GitHub
+from nonebot.adapters.github import OAuthBot, GitHubBot
 
 from . import config
 
 
-def get_bot() -> GitHubBot:
+def get_github_bot() -> GitHubBot:
+    """Get the GitHub bot instance"""
     return nonebot.get_bot(config.github_app.app_id)  # type: ignore
 
 
+def get_oauth_bot() -> OAuthBot:
+    """Get the OAuth bot instance"""
+    if not config.oauth_app:
+        raise ValueError("No OAuth app configured")
+    return nonebot.get_bot(config.oauth_app.client_id)  # type: ignore
+
+
 def get_github() -> GitHub:
-    return get_bot().github
+    """Get the github app client"""
+    return get_github_bot().github
 
 
-def get_user_github(access_token: str) -> GitHub[TokenAuthStrategy]:
-    return GitHub(TokenAuthStrategy(access_token), config=get_github().config)
+def get_oauth_github() -> GitHub:
+    """Get the oauth app client"""
+    return get_oauth_bot().github

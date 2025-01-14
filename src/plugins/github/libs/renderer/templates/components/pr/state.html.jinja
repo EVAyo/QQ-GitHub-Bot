@@ -2,7 +2,7 @@
  * @Author         : yanyongyu
  * @Date           : 2022-09-16 16:42:19
  * @LastEditors    : yanyongyu
- * @LastEditTime   : 2022-09-16 17:16:05
+ * @LastEditTime   : 2024-05-14 21:11:11
  * @Description    : None
  * @GitHub         : https://github.com/yanyongyu
 -->
@@ -12,25 +12,31 @@
 {% from "icons/pr-draft.html.jinja" import octicon_pr_draft %}
 {% from "icons/pr-merged.html.jinja" import octicon_pr_merged %}
 
-{% macro pr_state(pull_request) %}
-<div class="flex-shrink-0 mb-2 flex-self-start flex-md-self-center">
-  {% if pull_request.merged %}
-  {% set state = "merged" %}
-  {% elif pull_request.draft %}
-  {% set state = "draft" %}
-  {% elif pull_request.state == "closed" %}
-  {% set state = "closed" %}
+{#
+state: str
+merged: bool
+draft: bool
+class: str
+#}
+{% macro pr_state(state, merged, draft, class="") %}
+<div class="{{ class }}">
+  {% if merged %}
+  {% set color = "merged" %}
+  {% elif state == "closed" %}
+  {% set color = "closed" %}
+  {% elif draft %}
+  {% set color = "draft" %}
   {% else %}
-  {% set state = "open" %}
+  {% set color = "open" %}
   {% endif %}
 
-  <span class="State State--{{ state }} mr-2">
-    {% if pull_request.merged %}
+  <span class="State State--{{ color }} mr-2">
+    {% if merged %}
     {{ octicon_pr_merged() }} Merged
-    {% elif pull_request.draft %}
-    {{ octicon_pr_draft() }} Draft
-    {% elif pull_request.state == "closed" %}
+    {% elif state == "closed" %}
     {{ octicon_pr_closed() }} Closed
+    {% elif draft %}
+    {{ octicon_pr_draft() }} Draft
     {% else %}
     {{ octicon_pr() }} Open
     {% endif %}
