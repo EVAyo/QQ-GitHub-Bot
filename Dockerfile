@@ -1,54 +1,78 @@
-FROM python:3.8 as requirements-stage
+# syntax=docker/dockerfile:1
+
+FROM python:3.11-bookworm AS requirements-stage
 
 WORKDIR /tmp
 
+ENV POETRY_HOME="/opt/poetry" PATH="${PATH}:/opt/poetry/bin"
+
+RUN curl -sSL https://install.python-poetry.org | python - -y && \
+  poetry self add poetry-plugin-export
+
 COPY ./pyproject.toml ./poetry.lock* /tmp/
 
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py -o install-poetry.py
+RUN poetry export -f requirements.txt --output requirements.txt --without-hashes --with deploy
 
-RUN python install-poetry.py --yes
+FROM python:3.11-bookworm AS build-stage
 
-ENV PATH="${PATH}:/root/.local/bin"
+WORKDIR /wheel
 
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
+COPY --from=requirements-stage /tmp/requirements.txt /wheel/requirements.txt
 
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.8
+# RUN python3 -m pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+
+RUN pip wheel --wheel-dir=/wheel --no-cache-dir --requirement /wheel/requirements.txt
+
+FROM python:3.11-bookworm AS metadata-stage
+
+WORKDIR /tmp
+
+RUN --mount=type=bind,source=./.git/,target=/tmp/.git/ \
+  git describe --tags --exact-match > /tmp/VERSION 2>/dev/null \
+  || git rev-parse --short HEAD > /tmp/VERSION \
+  && echo "Building version: $(cat /tmp/VERSION)"
+
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-ENV LANG zh_CN.UTF-8
-ENV LANGUAGE zh_CN.UTF-8
-ENV LC_ALL zh_CN.UTF-8
-ENV TZ Asia/Shanghai
-ENV DEBIAN_FRONTEND noninteractive
+ENV TZ=Asia/Shanghai DEBIAN_FRONTEND=noninteractive
 
-ENV MAX_WORKERS 1
-ENV APP_MODULE bot:app
-# ENV XVFB_INSTALLED true
+COPY ./docker/start.sh /start.sh
+RUN chmod +x /start.sh
+
+COPY ./docker/gunicorn_conf.py /gunicorn_conf.py
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8086
+
+ENV APP_MODULE=bot:app
 
 # RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak &&\
 #   echo "deb http://mirrors.aliyun.com/debian/ buster main" >> /etc/apt/sources.list\
 #   && echo "deb http://mirrors.aliyun.com/debian/ buster-updates main" >> /etc/apt/sources.list\
-#   && echo "deb http://mirrors.aliyun.com/debian-security/ buster/updates main" >> /etc/apt/sources.list\
-#   && apt-get update && apt-get install -y locales locales-all fonts-noto
+#   && echo "deb http://mirrors.aliyun.com/debian-security/ buster/updates main" >> /etc/apt/sources.list
 
-RUN apt-get update && apt-get install -y locales locales-all fonts-noto
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl p7zip-full fontconfig fonts-noto-color-emoji \
+  && curl -sSL https://github.com/be5invis/Sarasa-Gothic/releases/download/v1.0.14/Sarasa-TTC-1.0.14.7z -o /tmp/sarasa.7z \
+  && 7z x /tmp/sarasa.7z -o/tmp/sarasa \
+  && install -d /usr/share/fonts/sarasa-gothic \
+  && install -m644 /tmp/sarasa/*.ttc /usr/share/fonts/sarasa-gothic \
+  && fc-cache -fv \
+  && apt-get purge -y --auto-remove curl p7zip-full \
+  && rm -rf /tmp/sarasa /tmp/sarasa.7z /var/lib/apt/lists/*
 
-# RUN python3 -m pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+COPY --from=build-stage /wheel /wheel
 
-COPY --from=requirements-stage /tmp/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --no-index --find-links=/wheel -r /wheel/requirements.txt && rm -rf /wheel
 
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+RUN playwright install --with-deps chromium \
+  && rm -rf /var/lib/apt/lists/*
 
-RUN echo "Install playwright headless browser..." \
-  && playwright install chromium \
-  && apt-get install -y libnss3-dev libxss1 libasound2 libxrandr2\
-  libatk1.0-0 libgtk-3-0 libgbm-dev libxshmfence1
+COPY --from=metadata-stage /tmp/VERSION /app/VERSION
 
-# RUN echo "Install wkhtmltox renderer..." \
-#   && chmod +x ./scripts/download_wkhtmltox.sh \
-#   && ./scripts/download_wkhtmltox.sh buster_amd64 \
-#   && apt-get install -y xvfb ./wkhtmltox_*.deb\
-#   && rm wkhtmltox_*.deb
+COPY . /app/
 
-COPY ./ /app/
+CMD ["/start.sh"]

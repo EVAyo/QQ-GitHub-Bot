@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 @Author         : yanyongyu
 @Date           : 2022-09-05 11:06:19
 @LastEditors    : yanyongyu
 @LastEditTime   : 2022-09-13 15:58:36
-@Description    : None
+@Description    : Cache control for github plugin
 @GitHub         : https://github.com/yanyongyu
 """
+
 __author__ = "yanyongyu"
 
 

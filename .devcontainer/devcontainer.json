@@ -1,37 +1,33 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.245.2/containers/codespaces-linux
 {
-  "name": "GitHub Codespaces (Default)",
+  "name": "Bot (Postgres, Redis)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 
-  "build": {
-    "dockerfile": "Dockerfile"
+  "features": {
+    "ghcr.io/devcontainers-contrib/features/poetry:2": {},
+    "ghcr.io/devcontainers-contrib/features/fish-apt-get:1": {}
   },
 
-  // Configure tool-specific properties.
+  // postgres port
+  "forwardPorts": [5432, 6379],
+
+  // install dependencies
+  "postCreateCommand": "./scripts/setup_devcontainer.sh",
+
+  // vscode settings
   "customizations": {
-    // Configure properties specific to VS Code.
     "vscode": {
-      // Set *default* container specific settings.json values on container create.
       "settings": {
-        "go.toolsManagement.checkForUpdates": "local",
-        "go.useLanguageServer": true,
-        "go.gopath": "/go",
-        "python.defaultInterpreterPath": "/opt/python/latest/bin/python",
-        "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
-        "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
-        "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
-        "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
-        "python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
-        "python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
-        "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
-        "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
-        "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint",
+        // disable dotenv auto activate
+        "python.envFile": "",
         "python.analysis.diagnosticMode": "workspace",
-        "python.analysis.typeCheckingMode": "basic",
+        "ruff.organizeImports": false,
         "[python]": {
           "editor.defaultFormatter": "ms-python.black-formatter",
           "editor.codeActionsOnSave": {
-            "source.organizeImports": true
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports": "explicit"
           }
         },
         "[javascript]": {
@@ -49,7 +45,6 @@
         "[typescriptreact]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
         },
-        "lldb.executable": "/usr/bin/lldb",
         "files.exclude": {
           "**/__pycache__": true
         },
@@ -58,39 +53,15 @@
           "**/__pycache__": true
         }
       },
-
-      // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
-        "GitHub.vscode-pull-request-github",
         "ms-python.python",
         "ms-python.vscode-pylance",
         "ms-python.isort",
         "ms-python.black-formatter",
+        "charliermarsh.ruff",
         "EditorConfig.EditorConfig",
         "esbenp.prettier-vscode"
       ]
     }
-  },
-
-  "remoteUser": "codespace",
-
-  "overrideCommand": false,
-
-  "mounts": [
-    "source=codespaces-linux-var-lib-docker,target=/var/lib/docker,type=volume"
-  ],
-
-  "runArgs": [
-    "--cap-add=SYS_PTRACE",
-    "--security-opt",
-    "seccomp=unconfined",
-    "--privileged",
-    "--init"
-  ],
-
-  // Use 'forwardPorts' to make a list of ports inside the container available locally.
-  // "forwardPorts": [],
-
-  // "oryx build" will automatically install your dependencies and attempt to build your project
-  "postCreateCommand": "poetry install && poetry run pre-commit install"
+  }
 }

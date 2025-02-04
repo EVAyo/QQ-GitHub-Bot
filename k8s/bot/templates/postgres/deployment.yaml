@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bot.name" . }}-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "bot.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      {{- with .Values.postgres.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "bot.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      securityContext:
+        {{- toYaml .Values.postgres.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-postgres
+          securityContext:
+            {{- toYaml .Values.postgres.securityContext | nindent 12 }}
+          image: "{{ .Values.postgres.image.repo }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ required "postgres user" .Values.bot.config.POSTGRES_USER | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ required "postgres password" .Values.bot.config.POSTGRES_PASSWORD | quote }}
+            - name: POSTGRES_DB
+              value: {{ required "postgres database" .Values.bot.config.POSTGRES_DB | quote }}
+            - name: POSTGRES_INITDB_ARGS
+              value: "--encoding=UTF8"
+            - name: TZ
+              value: Asia/Shanghai
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        {{- if not .Values.postgres.persistence.enabled }}
+        - name: postgres-data
+          emptyDir: {}
+        {{- else if .Values.postgres.persistence.existingClaim }}
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.postgres.persistence.existingClaim | quote }}
+        {{- else }}
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: {{ include "bot.name" . }}-postgres-pvc
+        {{- end }}
+      {{- with .Values.postgres.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.postgres.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

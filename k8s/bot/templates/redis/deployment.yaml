@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bot.name" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "bot.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      {{- with .Values.redis.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "bot.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      securityContext:
+        {{- toYaml .Values.redis.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-redis
+          securityContext:
+            {{- toYaml .Values.redis.securityContext | nindent 12 }}
+          image: "{{ .Values.redis.image.repo }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          args:
+            - sh
+            - -c
+            - "redis-server --requirepass $(REDIS_PASSWORD)"
+          env:
+            - name: REDIS_PASSWORD
+              value: {{ required "redis password" .Values.bot.config.REDIS_PASSWORD | quote }}
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /data
+              name: redis-data
+      restartPolicy: Always
+      volumes:
+        {{- if not .Values.redis.persistence.enabled }}
+        - name: redis-data
+          emptyDir: {}
+        {{- else if .Values.redis.persistence.existingClaim }}
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.redis.persistence.existingClaim | quote }}
+        {{- else }}
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: {{ include "bot.name" . }}-redis-pvc
+        {{- end }}
+      {{- with .Values.redis.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redis.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redis.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+status: {}
